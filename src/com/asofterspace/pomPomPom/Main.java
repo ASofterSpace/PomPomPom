@@ -6,6 +6,7 @@ package com.asofterspace.pomPomPom;
 
 import com.asofterspace.toolbox.io.Directory;
 import com.asofterspace.toolbox.io.File;
+import com.asofterspace.toolbox.io.XmlFile;
 import com.asofterspace.toolbox.Utils;
 
 import java.util.ArrayList;
@@ -48,13 +49,13 @@ public class Main {
 		boolean recursive = true;
 		List<File> allFiles = parentDir.getAllFiles(recursive);
 
-		List<File> poms = new ArrayList<>();
+		List<XmlFile> poms = new ArrayList<>();
 
 		System.out.println("Found the following poms:");
 
 		for (File file : allFiles) {
 			if ("pom.xml".equals(file.getLocalFilename().toLowerCase())) {
-				poms.add(file);
+				poms.add(new XmlFile(file));
 				System.out.println(file.getCanonicalFilename());
 			}
 		}
