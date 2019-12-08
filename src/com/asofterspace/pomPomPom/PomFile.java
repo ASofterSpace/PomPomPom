@@ -107,6 +107,17 @@ public class PomFile extends XmlFile {
 
 		dependencies = new ArrayList<>();
 
+		XmlElement deps = root.getChild("dependencies");
+		if (deps != null) {
+			List<XmlElement> depList = deps.getChildren("dependency");
+			for (XmlElement depEl : depList) {
+				Dependency dep = new Dependency(depEl);
+				if (!dependencies.contains(dep)) {
+					dependencies.add(dep);
+				}
+			}
+		}
+
 		XmlElement build = root.getChild("build");
 		if (build != null) {
 			XmlElement plugins = build.getChild("plugins");

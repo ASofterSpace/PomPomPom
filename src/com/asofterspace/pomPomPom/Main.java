@@ -89,6 +89,7 @@ public class Main {
 			result.append(dependency.getArtifactId());
 			result.append(" | ");
 			result.append(dependency.getVersion());
+			result.append("\n");
 		}
 
 		SimpleFile outputFile = new SimpleFile("output.txt");
