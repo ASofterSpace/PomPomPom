@@ -44,6 +44,10 @@ public class Dependency {
 		return version;
 	}
 
+	public void setVersion(String newVersion) {
+		this.version = newVersion;
+	}
+
 	@Override
 	public boolean equals(Object other) {
 		if (other == null) {

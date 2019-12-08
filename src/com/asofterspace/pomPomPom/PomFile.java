@@ -9,7 +9,9 @@ import com.asofterspace.toolbox.io.XmlElement;
 import com.asofterspace.toolbox.io.XmlFile;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 
 public class PomFile extends XmlFile {
@@ -25,6 +27,8 @@ public class PomFile extends XmlFile {
 	private PomFile parent;
 
 	private List<Dependency> dependencies;
+	private List<Dependency> managedDependencies;
+	private Map<String, String> properties;
 
 	private boolean initialized = false;
 
@@ -58,12 +62,19 @@ public class PomFile extends XmlFile {
 				}
 			}
 		}
+
+		// now update what needs to be updated AFTER the link-up!
+		for (PomFile pom : pomFiles) {
+			pom.updateDependencyVersions();
+		}
 	}
 
 	/**
 	 * Initializes this one pom file
 	 */
 	public void loadPomContents() {
+
+		initialized = true;
 
 		XmlElement root = getRoot();
 
@@ -132,7 +143,45 @@ public class PomFile extends XmlFile {
 			}
 		}
 
-		initialized = true;
+		managedDependencies = new ArrayList<>();
+
+		// TODO - add managed dependencies
+
+		properties = new HashMap<>();
+
+		XmlElement propEl = root.getChild("properties");
+		if (propEl != null) {
+			List<XmlElement> children = propEl.getChildNodes();
+			for (XmlElement child : children) {
+				properties.put(child.getTagName(), child.getInnerText());
+			}
+		}
+
+		updateDependencyVersions();
+	}
+
+	private void updateDependencyVersions() {
+
+		for (Dependency dep : dependencies) {
+			String ver = dep.getVersion();
+			if (ver == null) {
+				// TODO :: get from dependency management (potentially of parent)
+
+			} else if (ver.startsWith("${") && ver.endsWith("}")) {
+				String searchProp = ver.substring(2);
+				searchProp = searchProp.substring(0, searchProp.length() - 1);
+				PomFile curFile = this;
+				while (curFile != null) {
+					Map<String, String> curProps = curFile.getProperties();
+					String newVersion = curProps.get(searchProp);
+					if (newVersion != null) {
+						dep.setVersion(newVersion);
+						break;
+					}
+					curFile = curFile.getParent();
+				}
+			}
+		}
 	}
 
 	public String getGroupId() {
@@ -169,6 +218,20 @@ public class PomFile extends XmlFile {
 		}
 
 		return dependencies;
+	}
+
+	public Map<String, String> getProperties() {
+
+		if (!initialized) {
+			loadPomContents();
+		}
+
+		return properties;
+	}
+
+	public PomFile getParent() {
+
+		return parent;
 	}
 
 }
