@@ -33,6 +33,17 @@ public class PomFile extends XmlFile {
 	private boolean initialized = false;
 
 
+	/**
+	 * You can construct a PomFile instance directly from a path name.
+	 */
+	public PomFile(String fullyQualifiedFileName) {
+
+		super(fullyQualifiedFileName);
+	}
+
+	/**
+	 * You can construct a PomFile instance by basing it on an existing file object.
+	 */
 	public PomFile(File regularFile) {
 		super(regularFile);
 	}
@@ -145,7 +156,19 @@ public class PomFile extends XmlFile {
 
 		managedDependencies = new ArrayList<>();
 
-		// TODO - add managed dependencies
+		XmlElement manDeps = root.getChild("dependencyManagement");
+		if (manDeps != null) {
+			XmlElement curDeps = manDeps.getChild("dependencies");
+			if (curDeps != null) {
+				List<XmlElement> depList = curDeps.getChildren("dependency");
+				for (XmlElement depEl : depList) {
+					Dependency dep = new Dependency(depEl);
+					if (!managedDependencies.contains(dep)) {
+						managedDependencies.add(dep);
+					}
+				}
+			}
+		}
 
 		properties = new HashMap<>();
 
@@ -163,17 +186,40 @@ public class PomFile extends XmlFile {
 	private void updateDependencyVersions() {
 
 		for (Dependency dep : dependencies) {
-			String ver = dep.getVersion();
-			if (ver == null) {
-				// TODO :: get from dependency management (potentially of parent)
 
-			} else if (ver.startsWith("${") && ver.endsWith("}")) {
+			String ver = dep.getVersion();
+
+			if (ver == null) {
+				// get from dependency management (potentially of parent)
+				PomFile curFile = this;
+				while ((ver == null) && (curFile != null)) {
+					List<Dependency> manDeps = curFile.getManagedDependencies();
+					for (Dependency manDep : manDeps) {
+						if (dep.equals(manDep)) {
+							ver = manDep.getVersion();
+							dep.setVersion(ver);
+						}
+					}
+					curFile = curFile.getParent();
+				}
+			}
+
+			if (ver == null) {
+				continue;
+			}
+
+			if (ver.startsWith("${") && ver.endsWith("}")) {
 				String searchProp = ver.substring(2);
 				searchProp = searchProp.substring(0, searchProp.length() - 1);
 				PomFile curFile = this;
 				while (curFile != null) {
 					Map<String, String> curProps = curFile.getProperties();
 					String newVersion = curProps.get(searchProp);
+					while ((newVersion != null) && (newVersion.startsWith("${") && newVersion.endsWith("}"))) {
+						searchProp = newVersion.substring(2);
+						searchProp = searchProp.substring(0, searchProp.length() - 1);
+						newVersion = curProps.get(searchProp);
+					}
 					if (newVersion != null) {
 						dep.setVersion(newVersion);
 						break;
@@ -218,6 +264,15 @@ public class PomFile extends XmlFile {
 		}
 
 		return dependencies;
+	}
+
+	public List<Dependency> getManagedDependencies() {
+
+		if (!initialized) {
+			loadPomContents();
+		}
+
+		return managedDependencies;
 	}
 
 	public Map<String, String> getProperties() {

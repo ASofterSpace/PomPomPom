@@ -29,14 +29,20 @@ build.sh
 To start up the PomPomPom project after it has been built, you can call under Windows:
 
 ```
-run.bat
+run.bat folder [pom] [pom] [pom]
 ```
 
 Or under Linux:
 
 ```
-run.sh
+run.sh folder [pom] [pom] [pom]
 ```
+
+In each case, you can give several arguments.
+
+The first argument is mandatory and should point to the directory of the project whose pom files you want to analyze.
+
+Each other argument is the path to a particular parent pom file which contains additional version numbers that should be interwoven with the rest of the output, but whose dependencies will not be reported in the output (as they are not part of the sub-project that you are looking at.)
 
 ## License
 

@@ -37,4 +37,4 @@ config
 *.pdf
 *.ppm
 *.png
-output.txt
+*.txt

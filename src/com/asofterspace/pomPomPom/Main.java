@@ -42,7 +42,8 @@ public class Main {
 
 		if (args.length < 1) {
 			System.out.println("You seem to have called PomPomPom without any arguments.");
-			System.out.println("Please use the directory in which you want to start analyzing poms as argument.");
+			System.out.println("Please use the directory in which you want to start analyzing poms as first argument.");
+			System.out.println("(You can also use several arguments - then the first is interpreted as directory, and every other as path to a pom which is added purely for referencing - so as a parent containing versions etc. - but which is not included in the dependency analysis!)");
 			return;
 		}
 
@@ -62,7 +63,17 @@ public class Main {
 			}
 		}
 
-		PomFile.initAll(poms);
+		List<PomFile> parentPoms = new ArrayList<>();
+
+		for (int i = 1; i < args.length; i++) {
+			parentPoms.add(new PomFile(args[i]));
+		}
+
+		List<PomFile> allPoms = new ArrayList<>();
+		allPoms.addAll(poms);
+		allPoms.addAll(parentPoms);
+
+		PomFile.initAll(allPoms);
 
 		List<Dependency> dependencies = new ArrayList<>();
 
