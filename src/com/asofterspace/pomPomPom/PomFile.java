@@ -8,6 +8,7 @@ import com.asofterspace.toolbox.io.File;
 import com.asofterspace.toolbox.io.XmlElement;
 import com.asofterspace.toolbox.io.XmlFile;
 
+import java.util.ArrayList;
 import java.util.List;
 
 
@@ -22,6 +23,8 @@ public class PomFile extends XmlFile {
 	private String parentVersion;
 
 	private PomFile parent;
+
+	private List<Dependency> dependencies;
 
 	private boolean initialized = false;
 
@@ -102,6 +105,22 @@ public class PomFile extends XmlFile {
 			this.version = this.parentVersion;
 		}
 
+		dependencies = new ArrayList<>();
+
+		XmlElement build = root.getChild("build");
+		if (build != null) {
+			XmlElement plugins = build.getChild("plugins");
+			if (plugins != null) {
+				List<XmlElement> pluginList = plugins.getChildren("plugin");
+				for (XmlElement plugin : pluginList) {
+					Dependency dep = new Dependency(plugin);
+					if (!dependencies.contains(dep)) {
+						dependencies.add(dep);
+					}
+				}
+			}
+		}
+
 		initialized = true;
 	}
 
@@ -130,6 +149,15 @@ public class PomFile extends XmlFile {
 		}
 
 		return version;
+	}
+
+	public List<Dependency> getDependencies() {
+
+		if (!initialized) {
+			loadPomContents();
+		}
+
+		return dependencies;
 	}
 
 }

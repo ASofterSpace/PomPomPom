@@ -6,10 +6,12 @@ package com.asofterspace.pomPomPom;
 
 import com.asofterspace.toolbox.io.Directory;
 import com.asofterspace.toolbox.io.File;
-import com.asofterspace.toolbox.io.XmlFile;
+import com.asofterspace.toolbox.io.SimpleFile;
 import com.asofterspace.toolbox.Utils;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 
@@ -49,16 +51,54 @@ public class Main {
 		boolean recursive = true;
 		List<File> allFiles = parentDir.getAllFiles(recursive);
 
-		List<XmlFile> poms = new ArrayList<>();
+		List<PomFile> poms = new ArrayList<>();
 
 		System.out.println("Found the following poms:");
 
 		for (File file : allFiles) {
 			if ("pom.xml".equals(file.getLocalFilename().toLowerCase())) {
-				poms.add(new XmlFile(file));
+				poms.add(new PomFile(file));
 				System.out.println(file.getCanonicalFilename());
 			}
 		}
+
+		PomFile.initAll(poms);
+
+		List<Dependency> dependencies = new ArrayList<>();
+
+		for (PomFile pom : poms) {
+			List<Dependency> pomDeps = pom.getDependencies();
+			for (Dependency pomDep : pomDeps) {
+				if (!dependencies.contains(pomDep)) {
+					dependencies.add(pomDep);
+				}
+			}
+		}
+
+		Collections.sort(dependencies, new Comparator<Dependency>() {
+			public int compare(Dependency a, Dependency b) {
+				return a.compareTo(b);
+			}
+		});
+
+		StringBuilder result = new StringBuilder();
+
+		for (Dependency dependency : dependencies) {
+			result.append(dependency.getGroupId());
+			result.append(" > ");
+			result.append(dependency.getArtifactId());
+			result.append(" | ");
+			result.append(dependency.getVersion());
+		}
+
+		SimpleFile outputFile = new SimpleFile("output.txt");
+		System.out.println("");
+		System.out.println("The output will now be written to " + outputFile.getCanonicalFilename());
+
+		outputFile.setContent(result);
+		outputFile.save();
+
+		System.out.println("The output has been saved - have a nice day! :)");
 	}
 
 }
