@@ -6,42 +6,93 @@ package com.asofterspace.pomPomPom;
 
 import com.asofterspace.toolbox.io.XmlElement;
 
+import java.util.List;
+
 
 public class Dependency {
 
+	private PomFile pom;
 	private String groupId;
 	private String artifactId;
 	private String version;
+	private String scope;
 
 
-	public Dependency(XmlElement el) {
+	public Dependency(XmlElement el, PomFile pom, List<PomError> encounteredErrors) {
+
+		this.pom = pom;
 
 		XmlElement curEl = el.getChild("groupId");
 		if (curEl != null) {
-			this.groupId = curEl.getInnerText();
+			this.groupId = curEl.getInnerText().trim();
 		}
 
 		curEl = el.getChild("artifactId");
 		if (curEl != null) {
-			this.artifactId = curEl.getInnerText();
+			this.artifactId = curEl.getInnerText().trim();
 		}
 
 		curEl = el.getChild("version");
 		if (curEl != null) {
-			this.version = curEl.getInnerText();
+			this.version = curEl.getInnerText().trim();
+		}
+
+		curEl = el.getChild("scope");
+		if (curEl != null) {
+			this.scope = curEl.getInnerText().trim();
+			if ("".equals(scope)) {
+				encounteredErrors.add(new PomError(PomErrorKind.SCOPE_EMPTY, pom));
+			}
+		}
+	}
+
+	public void validate(List<PomError> encounteredErrors) {
+
+		String curScope = this.scope;
+
+		if (curScope == null) {
+			curScope = pom.getScopeFromParentsForDependency(this);
+		}
+
+		if (!"test".equals(curScope)) {
+			if (((groupId != null) && groupId.endsWith(".doubles")) || ((artifactId != null) && artifactId.contains(".doubles."))) {
+				if (!(pom.getArtifactId().contains(".doubles.") || pom.getArtifactId().endsWith(".doubles") ||
+					pom.getArtifactId().contains(".itest.") || pom.getArtifactId().endsWith(".itest") ||
+					pom.getArtifactId().contains(".vtest.") || pom.getArtifactId().endsWith(".vtest") ||
+					pom.getAbsoluteFilename().contains("/itest/") || pom.getAbsoluteFilename().contains("\\itest\\") ||
+					pom.getAbsoluteFilename().contains("/vtest/") || pom.getAbsoluteFilename().contains("\\vtest\\"))) {
+					encounteredErrors.add(new PomError(PomErrorKind.SCOPE_FOR_DOUBLE_NOT_TEST, pom));
+				}
+			}
 		}
 	}
 
 	public String getGroupId() {
+		if (groupId == null) {
+			return "";
+		}
 		return groupId;
 	}
 
 	public String getArtifactId() {
+		if (artifactId == null) {
+			return "";
+		}
 		return artifactId;
 	}
 
 	public String getVersion() {
+		if (version == null) {
+			return "";
+		}
 		return version;
+	}
+
+	public String getScope() {
+		if (scope == null) {
+			return "";
+		}
+		return scope;
 	}
 
 	public void setVersion(String newVersion) {
@@ -55,13 +106,16 @@ public class Dependency {
 		}
 		if (other instanceof Dependency) {
 			Dependency otherDep = (Dependency) other;
-			return (groupId.equals(otherDep.getGroupId()) && artifactId.equals(otherDep.getArtifactId()));
+			return getGroupId().equals(otherDep.getGroupId()) && getArtifactId().equals(otherDep.getArtifactId());
 		}
 		return false;
 	}
 
 	@Override
 	public int hashCode() {
+		if (groupId == null) {
+			return 0;
+		}
 		return groupId.hashCode();
 	}
 
@@ -71,10 +125,21 @@ public class Dependency {
 		}
 		if (other instanceof Dependency) {
 			Dependency otherDependency = (Dependency) other;
-			if (groupId.equals(otherDependency.getGroupId())) {
-				return artifactId.toLowerCase().compareTo(otherDependency.getArtifactId().toLowerCase());
+			// first compare group-ids (any case)
+			int result = getGroupId().toLowerCase().compareTo(otherDependency.getGroupId().toLowerCase());
+			if (result == 0) {
+				// if they are the same, compare artifact ids (exact case)
+				result = getGroupId().compareTo(otherDependency.getGroupId());
 			}
-			return groupId.toLowerCase().compareTo(otherDependency.getGroupId().toLowerCase());
+			if (result == 0) {
+				// if they are the same, compare artifact ids (any case)
+				result = getArtifactId().toLowerCase().compareTo(otherDependency.getArtifactId().toLowerCase());
+			}
+			if (result == 0) {
+				// if still the same, compare artifact ids (exact case)
+				result = getArtifactId().compareTo(otherDependency.getArtifactId());
+			}
+			return result;
 		}
 		return -1;
 	}

@@ -18,8 +18,8 @@ import java.util.List;
 public class Main {
 
 	public final static String PROGRAM_TITLE = "PomPomPom";
-	public final static String VERSION_NUMBER = "0.0.0.1(" + Utils.TOOLBOX_VERSION_NUMBER + ")";
-	public final static String VERSION_DATE = "8. December 2019";
+	public final static String VERSION_NUMBER = "0.0.0.2(" + Utils.TOOLBOX_VERSION_NUMBER + ")";
+	public final static String VERSION_DATE = "8. December 2019 - 4. February 2020";
 
 	public static void main(String[] args) {
 
@@ -47,6 +47,8 @@ public class Main {
 			return;
 		}
 
+		List<PomError> encounteredErrors = new ArrayList<>();
+
 		Directory parentDir = new Directory(args[0]);
 
 		boolean recursive = true;
@@ -63,8 +65,8 @@ public class Main {
 			}
 		}
 
+		// adding parent poms which are external to the current analysis based on additional startup arguments
 		List<PomFile> parentPoms = new ArrayList<>();
-
 		for (int i = 1; i < args.length; i++) {
 			parentPoms.add(new PomFile(args[i]));
 		}
@@ -73,15 +75,17 @@ public class Main {
 		allPoms.addAll(poms);
 		allPoms.addAll(parentPoms);
 
-		PomFile.initAll(allPoms);
+		PomFile.initAll(allPoms, encounteredErrors);
 
 		List<Dependency> dependencies = new ArrayList<>();
 
 		for (PomFile pom : poms) {
 			List<Dependency> pomDeps = pom.getDependencies();
-			for (Dependency pomDep : pomDeps) {
-				if (!dependencies.contains(pomDep)) {
-					dependencies.add(pomDep);
+			if (pomDeps != null) {
+				for (Dependency pomDep : pomDeps) {
+					if (!dependencies.contains(pomDep)) {
+						dependencies.add(pomDep);
+					}
 				}
 			}
 		}
@@ -106,11 +110,35 @@ public class Main {
 		SimpleFile outputFile = new SimpleFile("output.txt");
 		System.out.println("");
 		System.out.println("The output will now be written to " + outputFile.getCanonicalFilename());
-
 		outputFile.setContent(result);
 		outputFile.save();
 
-		System.out.println("The output has been saved - have a nice day! :)");
+		SimpleFile errorFile = new SimpleFile("errors.txt");
+		System.out.println("");
+		System.out.println("The encountered errors will now be written to " + errorFile.getCanonicalFilename());
+		errorFile.clearContent();
+		for (PomErrorKind errorKind : PomErrorKind.values()) {
+			boolean wroteHeadline = false;
+			PomError prevError = null;
+			for (PomError error : encounteredErrors) {
+				if (errorKind.equals(error.getKind())) {
+					if (!wroteHeadline) {
+						errorFile.appendContent(errorKind.getDescription() + ":");
+						wroteHeadline = true;
+					}
+					if (!error.equals(prevError)) {
+						errorFile.appendContent(error.getFilename());
+						prevError = error;
+					}
+				}
+			}
+			if (wroteHeadline) {
+				errorFile.appendContent("");
+			}
+		}
+		errorFile.save();
+
+		System.out.println("The output and encountered errors have been saved - have a nice day! :)");
 	}
 
 }

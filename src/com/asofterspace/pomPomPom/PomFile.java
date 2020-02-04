@@ -52,16 +52,33 @@ public class PomFile extends XmlFile {
 	 * Initializes all the given pom files together,
 	 * establishing parent-child-links if possible
 	 */
-	public static void initAll(List<PomFile> pomFiles) {
+	public static void initAll(List<PomFile> pomFiles, List<PomError> encounteredErrors) {
 
 		// first ensure that they all have been initialized
 		for (PomFile pom : pomFiles) {
-			pom.loadPomContents();
+			try {
+				pom.loadPomContents(encounteredErrors);
+			} catch (Exception e) {
+				encounteredErrors.add(new PomError(PomErrorKind.XML_INVALID, pom));
+			}
 		}
 
 		// now link them up
 		for (PomFile pom : pomFiles) {
 			if ((pom.parentGroupId == null) || (pom.parentArtifactId == null) || (pom.parentVersion == null)) {
+				if ((pom.parentGroupId == null) || (pom.parentArtifactId == null) || (pom.parentVersion == null)) {
+					encounteredErrors.add(new PomError(PomErrorKind.PARENT_MISSING, pom));
+					continue;
+				}
+				if (pom.parentGroupId == null) {
+					encounteredErrors.add(new PomError(PomErrorKind.PARENT_GROUP_ID_MISSING, pom));
+				}
+				if (pom.parentArtifactId == null) {
+					encounteredErrors.add(new PomError(PomErrorKind.PARENT_ARTIFACT_ID_MISSING, pom));
+				}
+				if (pom.parentVersion == null) {
+					encounteredErrors.add(new PomError(PomErrorKind.PARENT_VERSION_MISSING, pom));
+				}
 				continue;
 			}
 			for (PomFile possibleParentPom : pomFiles) {
@@ -76,18 +93,41 @@ public class PomFile extends XmlFile {
 
 		// now update what needs to be updated AFTER the link-up!
 		for (PomFile pom : pomFiles) {
-			pom.updateDependencyVersions();
+			try {
+				pom.updateDependencyVersions();
+			} catch (Exception e) {
+				encounteredErrors.add(new PomError(PomErrorKind.XML_INVALID, pom));
+			}
+		}
+
+		// and finally validate the result!
+		for (PomFile pom : pomFiles) {
+			try {
+				pom.validateDependencies(encounteredErrors);
+			} catch (Exception e) {
+				encounteredErrors.add(new PomError(PomErrorKind.XML_INVALID, pom));
+			}
 		}
 	}
 
 	/**
 	 * Initializes this one pom file
 	 */
-	public void loadPomContents() {
+	public void loadPomContents(List<PomError> encounteredErrors) {
 
 		initialized = true;
 
+		if (!exists()) {
+			encounteredErrors.add(new PomError(PomErrorKind.FILE_NOT_FOUND, this));
+			return;
+		}
+
 		XmlElement root = getRoot();
+
+		if (root == null) {
+			encounteredErrors.add(new PomError(PomErrorKind.XML_INVALID, this));
+			return;
+		}
 
 		XmlElement parentInfo = root.getChild("parent");
 		XmlElement directGroupId = root.getChild("groupId");
@@ -97,32 +137,32 @@ public class PomFile extends XmlFile {
 		if (parentInfo != null) {
 			XmlElement curEl = parentInfo.getChild("groupId");
 			if (curEl != null) {
-				this.parentGroupId = curEl.getInnerText();
+				this.parentGroupId = curEl.getInnerText().trim();
 			}
 			curEl = parentInfo.getChild("artifactId");
 			if (curEl != null) {
-				this.parentArtifactId = curEl.getInnerText();
+				this.parentArtifactId = curEl.getInnerText().trim();
 			}
 			curEl = parentInfo.getChild("version");
 			if (curEl != null) {
-				this.parentVersion = curEl.getInnerText();
+				this.parentVersion = curEl.getInnerText().trim();
 			}
 		}
 
 		if (directGroupId != null) {
-			this.groupId = directGroupId.getInnerText();
+			this.groupId = directGroupId.getInnerText().trim();
 		} else {
 			this.groupId = this.parentGroupId;
 		}
 
 		if (directArtifactId != null) {
-			this.artifactId = directArtifactId.getInnerText();
+			this.artifactId = directArtifactId.getInnerText().trim();
 		} else {
 			this.artifactId = this.parentArtifactId;
 		}
 
 		if (directVersion != null) {
-			this.version = directVersion.getInnerText();
+			this.version = directVersion.getInnerText().trim();
 		} else {
 			this.version = this.parentVersion;
 		}
@@ -133,7 +173,7 @@ public class PomFile extends XmlFile {
 		if (deps != null) {
 			List<XmlElement> depList = deps.getChildren("dependency");
 			for (XmlElement depEl : depList) {
-				Dependency dep = new Dependency(depEl);
+				Dependency dep = new Dependency(depEl, this, encounteredErrors);
 				if (!dependencies.contains(dep)) {
 					dependencies.add(dep);
 				}
@@ -146,7 +186,7 @@ public class PomFile extends XmlFile {
 			if (plugins != null) {
 				List<XmlElement> pluginList = plugins.getChildren("plugin");
 				for (XmlElement plugin : pluginList) {
-					Dependency dep = new Dependency(plugin);
+					Dependency dep = new Dependency(plugin, this, encounteredErrors);
 					if (!dependencies.contains(dep)) {
 						dependencies.add(dep);
 					}
@@ -162,7 +202,7 @@ public class PomFile extends XmlFile {
 			if (curDeps != null) {
 				List<XmlElement> depList = curDeps.getChildren("dependency");
 				for (XmlElement depEl : depList) {
-					Dependency dep = new Dependency(depEl);
+					Dependency dep = new Dependency(depEl, this, encounteredErrors);
 					if (!managedDependencies.contains(dep)) {
 						managedDependencies.add(dep);
 					}
@@ -230,56 +270,76 @@ public class PomFile extends XmlFile {
 		}
 	}
 
-	public String getGroupId() {
+	private void validateDependencies(List<PomError> encounteredErrors) {
+
+		// do not validate the managed ones, as they do not need e.g. a scope
+		for (Dependency dep : dependencies) {
+			dep.validate(encounteredErrors);
+		}
+	}
+
+	String getScopeFromParentsForDependency(Dependency searchingForDep) {
+		for (Dependency dep : managedDependencies) {
+			if (searchingForDep.equals(dep)) {
+				if ((dep.getScope() != null) && (!"".equals(dep.getScope()))) {
+					return dep.getScope();
+				}
+			}
+		}
+
+		if (parent != null) {
+			return parent.getScopeFromParentsForDependency(searchingForDep);
+		}
+
+		return null;
+	}
+
+	private void ensureLoaded() {
 
 		if (!initialized) {
-			loadPomContents();
+			List<PomError> encounteredErrors = new ArrayList<>();
+			loadPomContents(encounteredErrors);
 		}
+	}
+
+	public String getGroupId() {
+
+		ensureLoaded();
 
 		return groupId;
 	}
 
 	public String getArtifactId() {
 
-		if (!initialized) {
-			loadPomContents();
-		}
+		ensureLoaded();
 
 		return artifactId;
 	}
 
 	public String getVersion() {
 
-		if (!initialized) {
-			loadPomContents();
-		}
+		ensureLoaded();
 
 		return version;
 	}
 
 	public List<Dependency> getDependencies() {
 
-		if (!initialized) {
-			loadPomContents();
-		}
+		ensureLoaded();
 
 		return dependencies;
 	}
 
 	public List<Dependency> getManagedDependencies() {
 
-		if (!initialized) {
-			loadPomContents();
-		}
+		ensureLoaded();
 
 		return managedDependencies;
 	}
 
 	public Map<String, String> getProperties() {
 
-		if (!initialized) {
-			loadPomContents();
-		}
+		ensureLoaded();
 
 		return properties;
 	}
@@ -289,4 +349,23 @@ public class PomFile extends XmlFile {
 		return parent;
 	}
 
+	@Override
+	public boolean equals(Object other) {
+
+		if (other == null) {
+			return false;
+		}
+
+		if (other instanceof PomFile) {
+			PomFile otherPomFile = (PomFile) other;
+			return getCanonicalFilename().equals(otherPomFile.getCanonicalFilename());
+		}
+
+		return false;
+	}
+
+	@Override
+	public int hashCode() {
+		return getCanonicalFilename().hashCode();
+	}
 }
