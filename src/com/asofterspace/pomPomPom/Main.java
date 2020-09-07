@@ -18,8 +18,8 @@ import java.util.List;
 public class Main {
 
 	public final static String PROGRAM_TITLE = "PomPomPom";
-	public final static String VERSION_NUMBER = "0.0.0.2(" + Utils.TOOLBOX_VERSION_NUMBER + ")";
-	public final static String VERSION_DATE = "8. December 2019 - 4. February 2020";
+	public final static String VERSION_NUMBER = "0.0.0.3(" + Utils.TOOLBOX_VERSION_NUMBER + ")";
+	public final static String VERSION_DATE = "8. December 2019 - 7. September 2020";
 
 	public static void main(String[] args) {
 

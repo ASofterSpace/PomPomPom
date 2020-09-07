@@ -68,10 +68,14 @@ public class Dependency {
 	}
 
 	public String getGroupId() {
-		if (groupId == null) {
+		String res = groupId;
+		if ((res == null) || res.equals("")) {
+			res = pom.getGroupId();
+		}
+		if (res == null) {
 			return "";
 		}
-		return groupId;
+		return res;
 	}
 
 	public String getArtifactId() {
@@ -97,6 +101,10 @@ public class Dependency {
 
 	public void setVersion(String newVersion) {
 		this.version = newVersion;
+	}
+
+	public PomFile getPom() {
+		return pom;
 	}
 
 	@Override
